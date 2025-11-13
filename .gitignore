@@ -1,0 +1,23 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Env
+.env
+.env.local
+.env.production
+.env.development
+
+# Build
+dist/
+build/
+.next/
+.vercel/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
