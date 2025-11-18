@@ -1,20 +1,13 @@
-// app/api/history/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
-
-if (!supabaseUrl || !supabaseKey) {
- 
-  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE env vars");
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE! 
+);
 
 export async function POST(req: Request) {
   try {
-    // авторизация как в /api/chat
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey || apiKey !== process.env.INTERNAL_API_KEY) {
       return NextResponse.json(
