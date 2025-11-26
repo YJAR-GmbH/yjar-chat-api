@@ -122,7 +122,7 @@ Nutze eine klare, moderne, positive Sprache.
     }
 
     // ---------------------------------------------
-    // 3.5 Support-Vorgang an n8n weiterleiten
+    // 3.5 Support → an /api/support weiterleiten
     // ---------------------------------------------
     if (intent === "support") {
       const supportPayload = {
@@ -147,7 +147,33 @@ Nutze eine klare, moderne, positive Sprache.
     }
 
     // ---------------------------------------------
-    // 4. Antwort mit Intent zurückgeben
+    // 3.6 Lead → an /api/leads weiterleiten
+    // ---------------------------------------------
+    if (intent === "lead") {
+      const leadPayload = {
+        sessionIdHash: sessionId ?? null,
+        name: body.name ?? null,
+        email: body.email ?? null,
+        message,
+        source: "website-chat"
+      };
+
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/leads`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-api-key": process.env.INTERNAL_API_KEY!
+          },
+          body: JSON.stringify(leadPayload)
+        });
+      } catch (err) {
+        console.error("Lead-Weiterleitung Fehler:", err);
+      }
+    }
+
+    // ---------------------------------------------
+    // 4. Antwort an Frontend zurückgeben
     // ---------------------------------------------
     return NextResponse.json(
       {
