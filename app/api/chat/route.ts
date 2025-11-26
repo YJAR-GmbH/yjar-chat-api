@@ -12,7 +12,6 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const apiKeyHeader = req.headers.get("x-api-key");
-
     const envKey = RAW_INTERNAL_API_KEY?.trim() || null;
     const apiKey = apiKeyHeader?.trim() || null;
 
@@ -47,8 +46,35 @@ export async function POST(req: Request) {
       );
     }
 
-   // System Prompt – definiert Verhalten des YJAR Assistenten
-const systemPrompt = `
+    // ---------------------------------------------
+    // 1. Intent Analyse (Lead / Support / Other)
+    // ---------------------------------------------
+    const intentPrompt = `
+Klassifiziere die Nutzeranfrage in eine der Kategorien:
+
+- "lead" → Nutzer interessiert sich für Zusammenarbeit, Preise, Angebote, Website-Erstellung, Marketing, AI-Integration, Kontaktaufnahme.
+- "support" → Nutzer beschreibt ein Problem, Fehler, technische Schwierigkeit, "funktioniert nicht", "geht nicht", "Problem", "Bug".
+- "other" → normale Unterhaltung oder allgemeine Fragen.
+
+Gib NUR eines der Wörter zurück: lead / support / other.
+`;
+
+    const intentCheck = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        { role: "system", content: intentPrompt },
+        { role: "user", content: message }
+      ],
+      max_tokens: 5
+    });
+
+    const intent =
+      intentCheck.choices[0]?.message?.content?.trim().toLowerCase() ?? "other";
+
+    // ---------------------------------------------
+    // 2. System Prompt – YJAR Assistent
+    // ---------------------------------------------
+    const systemPrompt = `
 Du bist der offizielle AI-Assistent der YJAR GmbH.
 Du antwortest professionell, freundlich, kompetent und klar.
 Du hilfst Website-Besuchern mit Informationen zu:
@@ -65,14 +91,14 @@ Erfinde niemals Fakten. Antworte knapp und präzise.
 Nutze eine klare, moderne, positive Sprache.
 `;
 
-const completion = await openai.chat.completions.create({
-  model: "gpt-4.1-mini",
-  messages: [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: message }
-  ],
-});
-
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "assistant", content: `Interne Info: intent = ${intent}` },
+        { role: "user", content: message }
+      ]
+    });
 
     const botAnswer = completion.choices[0]?.message?.content ?? "";
 
@@ -84,13 +110,27 @@ const completion = await openai.chat.completions.create({
       );
     }
 
+    // ---------------------------------------------
+    // 3. Chat-Log speichern
+    // ---------------------------------------------
     if (sessionId) {
-      logChatMessage({ sessionId, userMessage: message, botAnswer }).catch(
-        (err) => console.error("logChatMessage error:", err)
-      );
+      logChatMessage({
+        sessionId,
+        userMessage: message,
+        botAnswer
+      }).catch((err) => console.error("logChatMessage error:", err));
     }
 
-    return NextResponse.json({ answer: botAnswer }, { status: 200 });
+    // ---------------------------------------------
+    // 4. Antwort mit Intent zurückgeben
+    // ---------------------------------------------
+    return NextResponse.json(
+      {
+        answer: botAnswer,
+        intent
+      },
+      { status: 200 }
+    );
   } catch (err) {
     console.error("chat api error:", err);
     return NextResponse.json(
