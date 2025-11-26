@@ -47,10 +47,32 @@ export async function POST(req: Request) {
       );
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [{ role: "user", content: message }],
-    });
+   // System Prompt – definiert Verhalten des YJAR Assistenten
+const systemPrompt = `
+Du bist der offizielle AI-Assistent der YJAR GmbH.
+Du antwortest professionell, freundlich, kompetent und klar.
+Du hilfst Website-Besuchern mit Informationen zu:
+- Leistungen der Agentur (Webdesign, Performance Marketing, SEO, Automatisierung, AI-Integration)
+- Preisen und Angeboten
+- Zusammenarbeit, Prozessen, Terminen
+- Kontaktaufnahme
+
+Wenn der Nutzer Interesse an einer Zusammenarbeit zeigt,
+bitte ihn höflich um Kontaktinformationen (E-Mail oder Name),
+damit ein Teammitglied sich melden kann.
+
+Erfinde niemals Fakten. Antworte knapp und präzise.
+Nutze eine klare, moderne, positive Sprache.
+`;
+
+const completion = await openai.chat.completions.create({
+  model: "gpt-4.1-mini",
+  messages: [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: message }
+  ],
+});
+
 
     const botAnswer = completion.choices[0]?.message?.content ?? "";
 
