@@ -122,6 +122,31 @@ Nutze eine klare, moderne, positive Sprache.
     }
 
     // ---------------------------------------------
+    // 3.5 Support-Vorgang an n8n weiterleiten
+    // ---------------------------------------------
+    if (intent === "support") {
+      const supportPayload = {
+        sessionId,
+        message,
+        url: body.url ?? null,
+        userAgent: body.userAgent ?? null
+      };
+
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/support`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-api-key": process.env.INTERNAL_API_KEY!
+          },
+          body: JSON.stringify(supportPayload)
+        });
+      } catch (err) {
+        console.error("Support-Weiterleitung Fehler:", err);
+      }
+    }
+
+    // ---------------------------------------------
     // 4. Antwort mit Intent zurückgeben
     // ---------------------------------------------
     return NextResponse.json(
