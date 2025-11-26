@@ -11,16 +11,16 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // -----------------------------------------------------
+    // (0) API-Key Prüfung
+    // -----------------------------------------------------
     const apiKeyHeader = req.headers.get("x-api-key");
     const envKey = RAW_INTERNAL_API_KEY?.trim() || null;
     const apiKey = apiKeyHeader?.trim() || null;
 
     if (!envKey) {
       console.error("INTERNAL_API_KEY is not set");
-      return NextResponse.json(
-        { error: "Server misconfigured" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
     if (!apiKey || apiKey !== envKey) {
@@ -28,67 +28,68 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // -----------------------------------------------------
+    // (1) Body lesen
+    // -----------------------------------------------------
     const body = await req.json();
     const { message, sessionId } = body || {};
 
     if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Message is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
     if (!process.env.OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY is not set");
-      return NextResponse.json(
-        { error: "OpenAI misconfigured" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "OpenAI misconfigured" }, { status: 500 });
     }
 
-    // ---------------------------------------------
-    // 1. Intent Analyse (Lead / Support / Other)
-    // ---------------------------------------------
+    // -----------------------------------------------------
+    // (2) Intent Analyse (lead / support / other)
+    // -----------------------------------------------------
     const intentPrompt = `
-Klassifiziere die Nutzeranfrage in eine der Kategorien:
+Klassifiziere die Nutzeranfrage in genau eine dieser Kategorien:
 
-- "lead" → Nutzer interessiert sich für Zusammenarbeit, Preise, Angebote, Website-Erstellung, Marketing, AI-Integration, Kontaktaufnahme.
-- "support" → Nutzer beschreibt ein Problem, Fehler, technische Schwierigkeit, "funktioniert nicht", "geht nicht", "Problem", "Bug".
-- "other" → normale Unterhaltung oder allgemeine Fragen.
+- "lead" → Nutzer will Zusammenarbeit, Angebot, Preise, Website, Marketing, Automatisierung.
+- "support" → Nutzer beschreibt ein Problem, Fehler oder "funktioniert nicht".
+- "other" → alle anderen Fragen.
 
-Gib NUR eines der Wörter zurück: lead / support / other.
+Antwort NUR mit einem der Wörter: lead / support / other.
 `;
 
     const intentCheck = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
+      max_tokens: 5,
       messages: [
         { role: "system", content: intentPrompt },
         { role: "user", content: message }
-      ],
-      max_tokens: 5
+      ]
     });
 
     const intent =
-      intentCheck.choices[0]?.message?.content?.trim().toLowerCase() ?? "other";
+      intentCheck.choices[0]?.message?.content?.trim().toLowerCase() || "other";
 
-    // ---------------------------------------------
-    // 2. System Prompt – YJAR Assistent
-    // ---------------------------------------------
+    // -----------------------------------------------------
+    // (3) Haupt-Systemprompt – YJAR Assistent
+    // -----------------------------------------------------
     const systemPrompt = `
 Du bist der offizielle AI-Assistent der YJAR GmbH.
-Du antwortest professionell, freundlich, kompetent und klar.
-Du hilfst Website-Besuchern mit Informationen zu:
-- Leistungen der Agentur (Webdesign, Performance Marketing, SEO, Automatisierung, AI-Integration)
-- Preisen und Angeboten
-- Zusammenarbeit, Prozessen, Terminen
-- Kontaktaufnahme
 
-Wenn der Nutzer Interesse an einer Zusammenarbeit zeigt,
-bitte ihn höflich um Kontaktinformationen (E-Mail oder Name),
-damit ein Teammitglied sich melden kann.
+Antwortstil:
+- professionell
+- freundlich
+- modern
+- klar
+- keine erfundenen Fakten
 
-Erfinde niemals Fakten. Antworte knapp und präzise.
-Nutze eine klare, moderne, positive Sprache.
+Du hilfst Besuchern bei:
+• Leistungen (Websites, Marketing, SEO, Automatisierung, KI-Integration)
+• Preisen & Angeboten
+• Projektablauf
+• Terminvereinbarung
+• Kontaktaufnahme
+
+Wenn der Nutzer Interesse zeigt:
+→ bitte höflich um Name oder E-Mail.
 `;
 
     const completion = await openai.chat.completions.create({
@@ -100,19 +101,15 @@ Nutze eine klare, moderne, positive Sprache.
       ]
     });
 
-    const botAnswer = completion.choices[0]?.message?.content ?? "";
+    const botAnswer = completion.choices[0]?.message?.content || "";
 
     if (!botAnswer) {
-      console.error("Empty botAnswer from OpenAI");
-      return NextResponse.json(
-        { error: "Empty response from model" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Empty response from model" }, { status: 500 });
     }
 
-    // ---------------------------------------------
-    // 3. Chat-Log speichern
-    // ---------------------------------------------
+    // -----------------------------------------------------
+    // (4) Chat-Logs speichern
+    // -----------------------------------------------------
     if (sessionId) {
       logChatMessage({
         sessionId,
@@ -121,9 +118,9 @@ Nutze eine klare, moderne, positive Sprache.
       }).catch((err) => console.error("logChatMessage error:", err));
     }
 
-    // ---------------------------------------------
-    // 3.5 Support → an /api/support weiterleiten
-    // ---------------------------------------------
+    // -----------------------------------------------------
+    // (5) Support-Fälle an /api/support weiterleiten
+    // -----------------------------------------------------
     if (intent === "support") {
       const supportPayload = {
         sessionId,
@@ -146,9 +143,9 @@ Nutze eine klare, moderne, positive Sprache.
       }
     }
 
-    // ---------------------------------------------
-    // 3.6 Lead → an /api/leads weiterleiten
-    // ---------------------------------------------
+    // -----------------------------------------------------
+    // (6) Lead-Fälle an /api/leads weiterleiten
+    // -----------------------------------------------------
     if (intent === "lead") {
       const leadPayload = {
         sessionIdHash: sessionId ?? null,
@@ -172,21 +169,12 @@ Nutze eine klare, moderne, positive Sprache.
       }
     }
 
-    // ---------------------------------------------
-    // 4. Antwort an Frontend zurückgeben
-    // ---------------------------------------------
-    return NextResponse.json(
-      {
-        answer: botAnswer,
-        intent
-      },
-      { status: 200 }
-    );
+    // -----------------------------------------------------
+    // (7) Antwort zurück an Frontend
+    // -----------------------------------------------------
+    return NextResponse.json({ answer: botAnswer, intent }, { status: 200 });
   } catch (err) {
     console.error("chat api error:", err);
-    return NextResponse.json(
-      { error: "chat api failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "chat api failed" }, { status: 500 });
   }
 }
