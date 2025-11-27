@@ -21,10 +21,16 @@ export async function POST(req: Request) {
     // Daten für n8n Webhook vorbereiten
     const payload = {
       sessionId: body.sessionId,
+      summary: body.summary ?? null,
+      contactName: body.contactName ?? null,
+      contactEmail: body.contactEmail ?? null,
+      contactPhone: body.contactPhone ?? null,
+      lastMessages: body.lastMessages ?? [],
       message: body.message,
       url: body.url ?? null,
       userAgent: body.userAgent ?? null
     };
+    
 
     // Request an n8n Support Workflow senden
     const webhookUrl = process.env.N8N_SUPPORT_WEBHOOK_URL;
