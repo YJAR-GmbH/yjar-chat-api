@@ -2,65 +2,97 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    // API-Key Prüfung
-    const apiKeyHeader = req.headers.get("x-internal-api-key");
-    if (!apiKeyHeader || apiKeyHeader !== process.env.INTERNAL_API_KEY) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    // Body aus dem Request lesen
     const body = await req.json();
 
-    // Pflichtfeld
-    if (!body.sessionId || !body.message) {
+    const {
+      sessionIdHash,
+      name,
+      email,
+      phone,
+      message,
+      lastMessages,
+      url,
+    } = body || {};
+
+    // Pflichtfelder prüfen:
+    // 1) sessionIdHash muss vorhanden sein
+    // 2) Name ist Pflicht
+    // 3) Mindestens E-Mail ODER Telefon muss gesetzt sein
+    if (!sessionIdHash) {
       return NextResponse.json(
-        { error: "sessionId und message sind erforderlich" },
+        { error: "sessionIdHash ist erforderlich" },
         { status: 400 }
       );
     }
 
-    // Daten für n8n Webhook vorbereiten
-    const payload = {
-      sessionId: body.sessionId,
-      summary: body.summary ?? null,
-      contactName: body.contactName ?? null,
-      contactEmail: body.contactEmail ?? null,
-      contactPhone: body.contactPhone ?? null,
-      lastMessages: body.lastMessages ?? [],
-      message: body.message,
-      url: body.url ?? null,
-      userAgent: body.userAgent ?? null
-    };
-    
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return NextResponse.json(
+        { error: "Name ist erforderlich" },
+        { status: 400 }
+      );
+    }
 
-    // Request an n8n Support Workflow senden
+    if (
+      (!email || !String(email).trim()) &&
+      (!phone || !String(phone).trim())
+    ) {
+      return NextResponse.json(
+        { error: "E-Mail oder Telefonnummer ist erforderlich" },
+        { status: 400 }
+      );
+    }
+
+    // Payload für n8n vorbereiten (an dein funktionierendes curl angepasst)
+    const payload = {
+      // sessionId aus dem Hash übernehmen
+      sessionId: sessionIdHash,
+      // Zusammenfassung aus der letzten Nachricht (oder null)
+      summary: message ?? null,
+      contactName: name ?? null,
+      contactEmail: email ?? null,
+      contactPhone: phone ?? null,
+      // Letzte Chat-Nachrichten optional durchreichen
+      lastMessages: Array.isArray(lastMessages) ? lastMessages : [],
+      // Zusätzliche Metadaten (optional)
+      url: url ?? null,
+      userAgent: req.headers.get("user-agent") ?? null,
+    };
+
+    // n8n Webhook URL aus den Umgebungsvariablen holen
     const webhookUrl = process.env.N8N_SUPPORT_WEBHOOK_URL;
     if (!webhookUrl) {
       return NextResponse.json(
-        { error: "N8N webhook is not configured" },
+        { error: "N8N_SUPPORT_WEBHOOK_URL ist nicht konfiguriert" },
         { status: 500 }
       );
     }
 
+    // Request an n8n senden
     const n8nRes = await fetch(webhookUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
+    // Antwort von n8n versuchen zu parsen (kann leer sein)
     const result = await n8nRes.json().catch(() => ({}));
 
     return NextResponse.json(
       {
         ok: true,
         forwarded: true,
-        n8n: result
+        n8nStatus: n8nRes.status,
+        n8n: result,
       },
       { status: 200 }
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    // Fehlerfall sauber behandeln
+    const message =
+      error instanceof Error ? error.message : "Unbekannter Fehler";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
