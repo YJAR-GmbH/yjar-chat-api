@@ -32,7 +32,8 @@ export async function POST(req: Request) {
     // (1) Body lesen
     // -----------------------------------------------------
     const body = await req.json();
-    const { message, sessionId } = body || {};
+    const { message, sessionId, phone, consent } = body || {};
+
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -126,9 +127,11 @@ Wenn der Nutzer Interesse zeigt:
         sessionId,
         message,
         url: body.url ?? null,
-        userAgent: body.userAgent ?? null
+        userAgent: body.userAgent ?? null,
+        phone: phone ?? null,          
+        consent: !!consent            
       };
-
+    
       try {
         await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/support`, {
           method: "POST",
@@ -141,7 +144,7 @@ Wenn der Nutzer Interesse zeigt:
       } catch (err) {
         console.error("Support-Weiterleitung Fehler:", err);
       }
-    }
+    }    
 
     // -----------------------------------------------------
     // (6) Lead-Fälle an /api/leads weiterleiten
@@ -151,10 +154,12 @@ Wenn der Nutzer Interesse zeigt:
         sessionIdHash: sessionId ?? null,
         name: body.name ?? null,
         email: body.email ?? null,
+        phone: phone ?? null,         
         message,
-        source: "website-chat"
+        source: "website-chat",
+        consent: !!consent           
       };
-
+    
       try {
         await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/leads`, {
           method: "POST",
@@ -168,6 +173,7 @@ Wenn der Nutzer Interesse zeigt:
         console.error("Lead-Weiterleitung Fehler:", err);
       }
     }
+    
 
     // -----------------------------------------------------
     // (7) Antwort zurück an Frontend
