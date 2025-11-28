@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       message,
       lastMessages,
       url,
+      ticketTitle,
     } = body || {};
 
     // Pflichtfelder prüfen:
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       // Zusätzliche Metadaten (optional)
       url: url ?? null,
       userAgent: req.headers.get("user-agent") ?? null,
+      ticketTitle: ticketTitle ?? null, 
     };
 
     // n8n Webhook URL aus den Umgebungsvariablen holen
