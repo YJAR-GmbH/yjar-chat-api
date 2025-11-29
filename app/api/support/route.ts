@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       lastMessages,
       url,
       ticketTitle,
-      consent
+      consent,
     } = body || {};
 
     // --- Pflichtfelder prüfen ---
@@ -54,13 +54,18 @@ export async function POST(req: Request) {
         last_messages: Array.isArray(lastMessages) ? lastMessages : [],
         ticket_title: ticketTitle ?? null,
         url: url ?? null,
-        consent: consent ?? null
+        consent: consent ?? null,
       })
       .select()
       .single();
 
+    // Fehler nicht schlucken, sondern zurückgeben
     if (ticketError) {
       console.error("Supabase tickets insert error:", ticketError);
+      return NextResponse.json(
+        { error: ticketError.message },
+        { status: 500 }
+      );
     }
 
     // --- Weiter an n8n schicken (optional) ---
