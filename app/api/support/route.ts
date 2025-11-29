@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
-    // Body aus dem Request lesen
     const body = await req.json();
 
     const {
@@ -14,12 +14,10 @@ export async function POST(req: Request) {
       lastMessages,
       url,
       ticketTitle,
+      consent
     } = body || {};
 
-    // Pflichtfelder prüfen:
-    // 1) sessionIdHash muss vorhanden sein
-    // 2) Name ist Pflicht
-    // 3) Mindestens E-Mail ODER Telefon muss gesetzt sein
+    // --- Pflichtfelder prüfen ---
     if (!sessionIdHash) {
       return NextResponse.json(
         { error: "sessionIdHash ist erforderlich" },
@@ -44,55 +42,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // Payload für n8n vorbereiten (an dein funktionierendes curl angepasst)
-    const payload = {
-      // sessionId aus dem Hash übernehmen
-      sessionId: sessionIdHash,
-      // Zusammenfassung aus der letzten Nachricht (oder null)
-      summary: message ?? null,
-      contactName: name ?? null,
-      contactEmail: email ?? null,
-      contactPhone: phone ?? null,
-      // Letzte Chat-Nachrichten optional durchreichen
-      lastMessages: Array.isArray(lastMessages) ? lastMessages : [],
-      // Zusätzliche Metadaten (optional)
-      url: url ?? null,
-      userAgent: req.headers.get("user-agent") ?? null,
-      ticketTitle: ticketTitle ?? null, 
-    };
+    // --- In Supabase speichern (tickets) ---
+    const { data: ticket, error: ticketError } = await supabase
+      .from("tickets")
+      .insert({
+        session_id_hash: sessionIdHash,
+        name: name.trim(),
+        email: email ? String(email).trim() : null,
+        phone: phone ? String(phone).trim() : null,
+        message: message ?? null,
+        last_messages: Array.isArray(lastMessages) ? lastMessages : [],
+        ticket_title: ticketTitle ?? null,
+        url: url ?? null,
+        consent: consent ?? null
+      })
+      .select()
+      .single();
 
-    // n8n Webhook URL aus den Umgebungsvariablen holen
-    const webhookUrl = process.env.N8N_SUPPORT_WEBHOOK_URL;
-    if (!webhookUrl) {
-      return NextResponse.json(
-        { error: "N8N_SUPPORT_WEBHOOK_URL ist nicht konfiguriert" },
-        { status: 500 }
-      );
+    if (ticketError) {
+      console.error("Supabase tickets insert error:", ticketError);
     }
 
-    // Request an n8n senden
-    const n8nRes = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    // --- Weiter an n8n schicken (optional) ---
+    if (process.env.N8N_SUPPORT_WEBHOOK_URL) {
+      await fetch(process.env.N8N_SUPPORT_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).catch((err) => console.error("N8N error:", err));
+    }
 
-    // Antwort von n8n versuchen zu parsen (kann leer sein)
-    const result = await n8nRes.json().catch(() => ({}));
-
-    return NextResponse.json(
-      {
-        ok: true,
-        forwarded: true,
-        n8nStatus: n8nRes.status,
-        n8n: result,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, ticket }, { status: 200 });
   } catch (error: unknown) {
-    // Fehlerfall sauber behandeln
     const message =
       error instanceof Error ? error.message : "Unbekannter Fehler";
     return NextResponse.json({ error: message }, { status: 500 });
