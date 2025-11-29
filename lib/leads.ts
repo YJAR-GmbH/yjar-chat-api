@@ -9,7 +9,7 @@ export type LeadPayload = {
   sessionIdHash: string;
   name?: string | null;
   email?: string | null;
-  phone: string | null;  
+  phone?: string | null;  
   message?: string | null;
   source?: string | null; 
 };
@@ -21,7 +21,7 @@ export async function createLead(payload: LeadPayload) {
       session_id_hash: payload.sessionIdHash,
       name: payload.name ?? null,
       email: payload.email ?? null,
-      phone: payload.email ?? null,
+      phone: payload.phone ?? null,
       message: payload.message ?? null,
       source: payload.source ?? "website-chat",
     })
