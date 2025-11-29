@@ -42,9 +42,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- In Supabase speichern (tickets) ---
+    // --- In Supabase speichern (support_tickets) ---
     const { data: ticket, error: ticketError } = await supabase
-      .from("tickets")
+      .from("support_tickets")          // <── ВАЖНО: НЕ "tickets", а "support_tickets"
       .insert({
         session_id_hash: sessionIdHash,
         name: name.trim(),
@@ -59,16 +59,15 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    // Fehler nicht schlucken, sondern zurückgeben
     if (ticketError) {
-      console.error("Supabase tickets insert error:", ticketError);
+      console.error("Supabase support_tickets insert error:", ticketError);
       return NextResponse.json(
         { error: ticketError.message },
         { status: 500 }
       );
     }
 
-    // --- Weiter an n8n schicken (optional) ---
+    // --- Optional: an n8n weiterleiten ---
     if (process.env.N8N_SUPPORT_WEBHOOK_URL) {
       await fetch(process.env.N8N_SUPPORT_WEBHOOK_URL, {
         method: "POST",
