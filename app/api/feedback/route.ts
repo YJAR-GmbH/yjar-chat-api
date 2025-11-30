@@ -10,10 +10,10 @@ export async function POST(req: Request) {
       vote,
       userMessage,
       botAnswer,
-      messageId,
+      // messageId – сейчас не используем
     } = body || {};
 
-    // messageId больше НЕ обязателен
+    // обязательные поля: только sIdHash + vote
     if (!sessionIdHash || !vote) {
       return NextResponse.json(
         { error: "sessionIdHash and vote are required" },
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
         vote,
         user_message: userMessage ?? null,
         bot_answer: botAnswer ?? null,
-        message_id: messageId ?? null, // если захочешь добавить позже
+        // message_id не трогаем, чтобы не ловить ошибку,
+        // когда колонки нет или она NOT NULL.
       })
       .select()
       .single();
@@ -40,8 +41,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Unbekannter Fehler";
+    const message = err instanceof Error ? err.message : "Unbekannter Fehler";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
