@@ -5,13 +5,11 @@ import { createLead } from "@/lib/leads";
 
 export async function POST(req: Request) {
   try {
-    // Interner API-Key Check (Zugriff nur vom Chat-Backend)
     const auth = req.headers.get("x-internal-api-key");
     if (!auth || auth !== process.env.INTERNAL_API_KEY) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Request-Body lesen
     const body = await req.json();
 
     const {
@@ -21,25 +19,19 @@ export async function POST(req: Request) {
       phone,
       message,
       source,
+      ticketTitle,
+      lastMessages,
+      url,
+      consent,
     } = body || {};
 
-    // sessionIdHash ist Pflicht
-    if (!sessionIdHash || typeof sessionIdHash !== "string") {
-      return NextResponse.json(
-        { error: "sessionIdHash ist erforderlich" },
-        { status: 400 }
-      );
+    if (!sessionIdHash) {
+      return NextResponse.json({ error: "sessionIdHash ist erforderlich" }, { status: 400 });
+    }
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Name ist erforderlich" }, { status: 400 });
     }
 
-    // Name ist Pflicht
-    if (!name || typeof name !== "string" || !name.trim()) {
-      return NextResponse.json(
-        { error: "Name ist erforderlich" },
-        { status: 400 }
-      );
-    }
-
-    // Mindestens E-Mail ODER Telefon ist Pflicht
     const hasEmail = email && String(email).trim().length > 0;
     const hasPhone = phone && String(phone).trim().length > 0;
 
@@ -50,22 +42,39 @@ export async function POST(req: Request) {
       );
     }
 
-    // Lead in Supabase speichern
+    // save lead
     const data = await createLead({
-      sessionIdHash: sessionIdHash,
+      sessionIdHash,
       name: name.trim(),
       email: hasEmail ? String(email).trim() : null,
-      phone: hasPhone ? String(phone).trim() : null, // Telefon wird jetzt gespeichert
+      phone: hasPhone ? String(phone).trim() : null,
       message: message ?? null,
       source: source ?? "website-chat",
     });
 
-    // Erfolgreiche Antwort
+    // send n8n PRODUKTION
+    if (process.env.N8N_LEAD_WEBHOOK_URL) {
+      await fetch(process.env.N8N_LEAD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionIdHash,
+          name,
+          email,
+          phone,
+          message,
+          lastMessages,
+          ticketTitle,
+          url,
+          consent,
+          type: "lead",
+        }),
+      }).catch((e) => console.error("LEAD N8N ERROR:", e));
+    }
+
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (error: unknown) {
-    // Fehlerbehandlung
-    const message =
-      error instanceof Error ? error.message : "Unbekannter Fehler";
+    const message = error instanceof Error ? error.message : "Unbekannter Fehler";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
