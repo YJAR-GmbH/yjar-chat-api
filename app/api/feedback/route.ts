@@ -10,10 +10,10 @@ export async function POST(req: Request) {
       vote,
       userMessage,
       botAnswer,
-     
+      messageId,
     } = body || {};
 
-    
+   
     if (!sessionIdHash || !vote) {
       return NextResponse.json(
         { error: "sessionIdHash and vote are required" },
@@ -21,14 +21,21 @@ export async function POST(req: Request) {
       );
     }
 
+    
+    let comment: string | null = null;
+    if (userMessage || botAnswer) {
+      const userPart = userMessage ? `User: ${userMessage}` : "";
+      const botPart = botAnswer ? `Bot: ${botAnswer}` : "";
+      comment = [userPart, botPart].filter(Boolean).join(" | ");
+    }
+
     const { data, error } = await supabase
       .from("feedback")
       .insert({
         session_id_hash: sessionIdHash,
+        message_id: messageId ?? null,
         vote,
-        user_message: userMessage ?? null,
-        bot_answer: botAnswer ?? null,
-       
+        comment, 
       })
       .select()
       .single();
@@ -40,7 +47,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+    const message =
+      err instanceof Error ? err.message : "Unbekannter Fehler";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
