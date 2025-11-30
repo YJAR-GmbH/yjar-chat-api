@@ -1,73 +1,47 @@
 import { NextResponse } from "next/server";
-import { logFeedback } from "@/lib/feedback";
-
-const RAW_INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
-   
-    const apiKeyHeader = req.headers.get("x-api-key");
-    const envKey = RAW_INTERNAL_API_KEY?.trim() || null;
-    const apiKey = apiKeyHeader?.trim() || null;
-
-    if (!envKey) {
-      console.error("INTERNAL_API_KEY is not set");
-      return NextResponse.json(
-        { error: "Server misconfigured" },
-        { status: 500 }
-      );
-    }
-
-    if (!apiKey || apiKey !== envKey) {
-      console.warn("Unauthorized request to /api/feedback");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    
     const body = await req.json();
-    const { sessionIdHash, messageId, vote, comment } = body || {};
 
-    
-    if (!sessionIdHash || typeof sessionIdHash !== "string") {
-      return NextResponse.json(
-        { error: "sessionIdHash is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!messageId || typeof messageId !== "string") {
-      return NextResponse.json(
-        { error: "messageId is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!vote || (vote !== "up" && vote !== "down")) {
-      return NextResponse.json(
-        { error: "vote must be 'up' or 'down'" },
-        { status: 400 }
-      );
-    }
-
- 
-    await logFeedback({
+    const {
       sessionIdHash,
-      messageId,
       vote,
-      comment: comment || null,
-    });
+      userMessage,
+      botAnswer,
+      messageId, // опционально
+    } = body || {};
 
-  
-    return NextResponse.json({ status: "ok" }, { status: 200 });
-  } catch (err) {
-    console.error("feedback api error:", err);
-    return NextResponse.json(
-      { error: "feedback api failed" },
-      { status: 500 }
-    );
+    // messageId больше НЕ обязателен
+    if (!sessionIdHash || !vote) {
+      return NextResponse.json(
+        { error: "sessionIdHash and vote are required" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("feedback")
+      .insert({
+        session_id_hash: sessionIdHash,
+        vote,
+        user_message: userMessage ?? null,
+        bot_answer: botAnswer ?? null,
+        message_id: messageId ?? null, // если захочешь добавить позже
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase feedback insert error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 200 });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Unbekannter Fehler";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({ status: "ok" });
 }
