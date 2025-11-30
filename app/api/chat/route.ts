@@ -60,7 +60,7 @@ Antwort NUR mit einem der Wörter: lead / support / other.
 `;
 
     const intentCheck = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4.1",
       max_tokens: 5,
       messages: [
         { role: "system", content: intentPrompt },
@@ -79,7 +79,7 @@ Antwort NUR mit einem der Wörter: lead / support / other.
     
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4.1",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "assistant", content: `Interne Info: intent = ${intent}` },
