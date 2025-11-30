@@ -10,10 +10,10 @@ export async function POST(req: Request) {
       vote,
       userMessage,
       botAnswer,
-      // messageId – сейчас не используем
+     
     } = body || {};
 
-    // обязательные поля: только sIdHash + vote
+    
     if (!sessionIdHash || !vote) {
       return NextResponse.json(
         { error: "sessionIdHash and vote are required" },
@@ -28,8 +28,7 @@ export async function POST(req: Request) {
         vote,
         user_message: userMessage ?? null,
         bot_answer: botAnswer ?? null,
-        // message_id не трогаем, чтобы не ловить ошибку,
-        // когда колонки нет или она NOT NULL.
+       
       })
       .select()
       .single();
