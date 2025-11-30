@@ -166,8 +166,21 @@ if (sessionId) {
     // (7) Antwort zurück an Frontend
     // -----------------------------------------------------
     return NextResponse.json({ answer: botAnswer, intent }, { status: 200 });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("chat api error:", err);
-    return NextResponse.json({ error: "chat api failed" }, { status: 500 });
+  
+    const detail =
+      err instanceof Error
+        ? `${err.name}: ${err.message}`
+        : JSON.stringify(err);
+  
+    return NextResponse.json(
+      {
+        error: "chat api failed",
+        detail,
+      },
+      { status: 500 }
+    );
   }
+  
 }
