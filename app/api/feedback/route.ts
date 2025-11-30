@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       vote,
       userMessage,
       botAnswer,
-      messageId, // опционально
+      messageId,
     } = body || {};
 
     // messageId больше НЕ обязателен
