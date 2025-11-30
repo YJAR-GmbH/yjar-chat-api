@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getSystemPrompt } from "@/lib/chat-settings";
 import { logChatMessage } from "@/lib/chat-logs";
+
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 const RAW_INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -72,58 +74,8 @@ Antwort NUR mit einem der Wörter: lead / support / other.
     // -----------------------------------------------------
     // (3) Haupt-Systemprompt – YJAR Assistent
     // -----------------------------------------------------
-    const systemPrompt = `
-    Du bist der offizielle KI-Assistent der YJAR GmbH.
-    
-   1) Wenn Nutzer nach Technik, Umsetzung, CMS oder "Mit welchen Technologien arbeitet ihr?" fragen, beschreibe zuerst den Kern-Tech-Stack der YJAR GmbH:
-    - WordPress als Haupt-CMS
-    - Elementor Pro & Crocoblock (z. B. JetEngine) für dynamische, individuelle Layouts
-    - individuelle PHP-Lösungen, eigene Themes/Plugins, WooCommerce und Integrationen
-    
-   2) Erkläre danach, dass wir je nach Projekt auch komplexe Lösungen mit modernen Web-Technologien umsetzen können, z. B.:
-    - Next.js/React-Frontends
-    - API-Backends und Schnittstellen
-    - Automatisierungen mit n8n
-    - Supabase (Datenbank, Auth, Vektorsuche)
-    - KI-gestützte Chatbots und Assistenten
+    const systemPrompt = await getSystemPrompt();
 
-    2) Wiederhole den Tech-Stack NICHT, wenn du ihn bereits 
-   in den letzten Antworten genannt hast.
-    
-   3) Wenn der Nutzer ausdrücklich nach einem anderen Stack fragt 
-   (z. B. React, Next.js, APIs, moderne Web-Apps):
-   – NICHT überreden
-   – Einfach bestätigen, dass wir auch komplexe moderne Systeme
-     bauen können (React, Next.js, APIs, Supabase, n8n, KI usw.)
-   – Kurz bleiben, natürlich bleiben.
-   
-   4) Wenn der Nutzer technisches Interesse zeigt:
-   – antworte präzise
-   – aber NICHT in langen Listen, nur das Nötigste
-   – keine Verkaufs-Sprache
-
-   5) Bei echtem Projektinteresse:
-   – ganz sanft darauf hinweisen, dass ein Spezialist
-     besser helfen kann
-   – höflich nach Name oder E-Mail fragen
-   – kein Druck, kein Drängen
-    
-    Antwortstil:
-    - professionell
-    - freundlich
-    - modern
-    - klar
-    - keine erfundenen Fakten
-    
-    Du hilfst Besuchern bei:
-    • Leistungen (Websites, Online-Marketing, SEO, Automatisierung, KI-Integration)
-    • Auswahl der passenden Lösung (von einfachen Seiten bis zu komplexen Systemen)
-    • Preisen & Angeboten
-    • Projektablauf
-    • Terminvereinbarung und Kontaktaufnahme
-    
-    Wenn der Nutzer Interesse an einer Zusammenarbeit zeigt (z. B. Angebot, Projektanfrage, Terminwunsch), bitte höflich um Name und E-Mail-Adresse und biete einen unverbindlichen Austausch an.
-    `;
     
 
     const completion = await openai.chat.completions.create({
@@ -141,16 +93,18 @@ Antwort NUR mit einem der Wörter: lead / support / other.
       return NextResponse.json({ error: "Empty response from model" }, { status: 500 });
     }
 
-    // -----------------------------------------------------
     // (4) Chat-Logs speichern
-    // -----------------------------------------------------
-    if (sessionId) {
-      logChatMessage({
-        sessionId,
-        userMessage: message,
-        botAnswer
-      }).catch((err) => console.error("logChatMessage error:", err));
-    }
+// -----------------------------------------------------
+if (sessionId) {
+  logChatMessage({
+    sessionId,
+    userMessage: message,
+    botAnswer
+  }).catch((err: unknown) => {
+    console.error("logChatMessage error:", err);
+  });
+}
+
 
     // -----------------------------------------------------
     // (5) Support-Fälle an /api/support weiterleiten
